@@ -5,12 +5,12 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const query = searchParams.get("q") || "";
-  const limitRaw = searchParams.get("limit");
-  const limitParsed = limitRaw ? Number(limitRaw) : undefined;
-  const limit =
-    typeof limitParsed === "number" && Number.isFinite(limitParsed)
-      ? Math.min(Math.max(Math.floor(limitParsed), 1), 2000)
-      : 500;
+  const maxRaw = searchParams.get("max");
+  const maxParsed = maxRaw ? Number(maxRaw) : undefined;
+  const maxVideos =
+    typeof maxParsed === "number" && Number.isFinite(maxParsed)
+      ? Math.min(Math.max(Math.floor(maxParsed), 0), 20000)
+      : undefined;
 
   if (!query) {
     return Response.json(
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   const data = await fetchChannelAndVideos({
     channelId: resolved.resolved.channelId,
     apiKey,
-    limit,
+    maxVideos,
   });
   if (!data.ok) {
     return Response.json(

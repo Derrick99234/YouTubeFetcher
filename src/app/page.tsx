@@ -6,10 +6,12 @@ import Image from "next/image";
 
 export default function Home() {
   const [q, setQ] = useState("");
-  const [limit, setLimit] = useState(500);
+  const [pageSize, setPageSize] = useState(20);
+  const [pageIndex, setPageIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "unwatched" | "watched">("all");
+  const [year, setYear] = useState<number | "all">("all");
   const [search, setSearch] = useState("");
   const [watchedById, setWatchedById] = useState<Record<string, true>>({});
   const [data, setData] = useState<{
@@ -83,6 +85,18 @@ export default function Home() {
     });
   }
 
+  const availableYears = useMemo(() => {
+    if (!data) return [];
+    const years = new Set<number>();
+    for (const v of data.videos) {
+      if (!v.publishedAt) continue;
+      const d = new Date(v.publishedAt);
+      const y = d.getUTCFullYear();
+      if (Number.isFinite(y)) years.add(y);
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [data]);
+
   const filteredVideos = useMemo(() => {
     if (!data) return [];
     const term = search.trim().toLowerCase();
@@ -90,13 +104,34 @@ export default function Home() {
       const isWatched = Boolean(watchedById[v.id]);
       if (filter === "watched" && !isWatched) return false;
       if (filter === "unwatched" && isWatched) return false;
+      if (year !== "all") {
+        if (!v.publishedAt) return false;
+        const d = new Date(v.publishedAt);
+        if (d.getUTCFullYear() !== year) return false;
+      }
       if (term) {
         const title = v.title.toLowerCase();
         if (!title.includes(term)) return false;
       }
       return true;
     });
-  }, [data, filter, search, watchedById]);
+  }, [data, filter, search, watchedById, year]);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [filter, search, year, pageSize, data?.channel.id]);
+
+  const pageCount = useMemo(() => {
+    if (!filteredVideos.length) return 1;
+    return Math.max(1, Math.ceil(filteredVideos.length / pageSize));
+  }, [filteredVideos.length, pageSize]);
+
+  const clampedPageIndex = Math.min(Math.max(pageIndex, 0), pageCount - 1);
+
+  const pagedVideos = useMemo(() => {
+    const start = clampedPageIndex * pageSize;
+    return filteredVideos.slice(start, start + pageSize);
+  }, [clampedPageIndex, filteredVideos, pageSize]);
 
   const watchedCount = useMemo(() => {
     if (!data) return 0;
@@ -111,9 +146,7 @@ export default function Home() {
     setData(null);
 
     try {
-      const res = await fetch(
-        `/api/youtube/videos?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`
-      );
+      const res = await fetch(`/api/youtube/videos?q=${encodeURIComponent(query)}`);
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         setError(json?.error?.message || "Request failed");
@@ -121,6 +154,7 @@ export default function Home() {
       }
       setData(json);
       setFilter("all");
+      setYear("all");
       setSearch("");
     } catch {
       setError("Request failed");
@@ -141,13 +175,11 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans ">
+    <div className="min-h-screen bg-zinc-50 font-sans">
       <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-10 sm:px-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold tracking-tight">YouTube Detail Fetcher</h1>
-          <p className="text-zinc-600 dark:text-zinc-400">
-            Paste a channel link, handle, or name to fetch all videos.
-          </p>
+          <p className="text-zinc-600">Paste a channel link, handle, or name to fetch all videos.</p>
         </div>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
@@ -159,15 +191,15 @@ export default function Home() {
               className="h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-zinc-400"
             />
             <input
-              value={String(limit)}
+              value={String(pageSize)}
               onChange={(e) => {
                 const n = Number(e.target.value);
                 if (!Number.isFinite(n)) return;
-                setLimit(Math.min(Math.max(Math.floor(n), 1), 2000));
+                setPageSize(Math.min(Math.max(Math.floor(n), 1), 200));
               }}
               inputMode="numeric"
               className="h-12 w-16 rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-zinc-400"
-              aria-label="Video limit"
+              aria-label="Page size"
             />
             <button
               type="submit"
@@ -177,25 +209,6 @@ export default function Home() {
               {loading ? "Fetching..." : "Fetch videos"}
             </button>
           </div>
-
-          {/* <div className="flex flex-wrap gap-2">
-            {[200, 500, 1000, 2000].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setLimit(n)}
-                className={`h-9 rounded-full px-4 text-sm font-medium transition-colors ${limit === n
-                  ? "bg-zinc-950 text-white"
-                  : "border border-zinc-200 bg-white text-zinc-900 hover:border-zinc-300"
-                  }`}
-              >
-                {n.toLocaleString()}
-              </button>
-            ))}
-            <div className="h-9 rounded-full border border-zinc-200 bg-white px-4 text-sm font-medium leading-9 text-zinc-700">
-              Limit
-            </div>
-          </div> */}
         </form>
 
         {error ? (
@@ -273,27 +286,43 @@ export default function Home() {
                   placeholder="Search titles..."
                   className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-400 dark:border-white/15"
                 />
+                <select
+                  value={year === "all" ? "all" : String(year)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "all") setYear("all");
+                    else setYear(Number(v));
+                  }}
+                  className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-400"
+                >
+                  <option value="all">All years</option>
+                  {availableYears.map((y) => (
+                    <option key={y} value={String(y)}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => markMany(filteredVideos.map((v) => v.id), true)}
+                    onClick={() => markMany(pagedVideos.map((v) => v.id), true)}
                     className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium hover:border-zinc-300 dark:border-white/15"
                   >
-                    Mark shown watched
+                    Mark page watched
                   </button>
                   <button
                     type="button"
-                    onClick={() => markMany(filteredVideos.map((v) => v.id), false)}
+                    onClick={() => markMany(pagedVideos.map((v) => v.id), false)}
                     className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium hover:border-zinc-300"
                   >
-                    Mark shown unwatched
+                    Mark page unwatched
                   </button>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {filteredVideos.map((v) => {
+              {pagedVideos.map((v) => {
                 const thumb =
                   v.thumbnails?.medium?.url ||
                   v.thumbnails?.default?.url ||
@@ -357,6 +386,47 @@ export default function Home() {
                   </div>
                 );
               })}
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-zinc-600">
+                Page {(clampedPageIndex + 1).toLocaleString()} of {pageCount.toLocaleString()} ·{" "}
+                {filteredVideos.length.toLocaleString()} filtered
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPageIndex(0)}
+                  disabled={clampedPageIndex === 0}
+                  className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium disabled:opacity-50"
+                >
+                  First
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+                  disabled={clampedPageIndex === 0}
+                  className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium disabled:opacity-50"
+                >
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
+                  disabled={clampedPageIndex >= pageCount - 1}
+                  className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium disabled:opacity-50"
+                >
+                  Next
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPageIndex(pageCount - 1)}
+                  disabled={clampedPageIndex >= pageCount - 1}
+                  className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium disabled:opacity-50"
+                >
+                  Last
+                </button>
+              </div>
             </div>
           </div>
         ) : null}

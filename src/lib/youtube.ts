@@ -428,12 +428,12 @@ export async function resolveChannel(input: string, apiKey: string): Promise<
 export async function fetchChannelAndVideos(params: {
   channelId: string;
   apiKey: string;
-  limit: number;
+  maxVideos?: number;
 }): Promise<
   | { ok: true; channel: ChannelInfo; videos: VideoInfo[] }
   | { ok: false; status: number; message: string; reason?: string }
 > {
-  const { channelId, apiKey, limit } = params;
+  const { channelId, apiKey, maxVideos } = params;
 
   const channelUrl = new URL("https://www.googleapis.com/youtube/v3/channels");
   channelUrl.searchParams.set("part", "snippet,contentDetails,statistics");
@@ -465,6 +465,13 @@ export async function fetchChannelAndVideos(params: {
     return { ok: false, status: 502, message: "Uploads playlist not available for channel" };
   }
 
+  const declaredVideoCount = toNumber(c.statistics?.videoCount);
+  const hardCap = 20000;
+  const desiredCount = Math.min(
+    Math.max(maxVideos ?? declaredVideoCount ?? 0, 0),
+    hardCap
+  );
+
   const playlistItems: Array<{
     videoId: string;
     fallback: {
@@ -477,8 +484,8 @@ export async function fetchChannelAndVideos(params: {
   }> = [];
 
   let pageToken: string | undefined = undefined;
-  while (playlistItems.length < limit) {
-    const remaining = limit - playlistItems.length;
+  while (desiredCount === 0 || playlistItems.length < desiredCount) {
+    const remaining = desiredCount === 0 ? 50 : desiredCount - playlistItems.length;
     const pageSize = Math.min(50, remaining);
     const playlistItemsUrl = new URL("https://www.googleapis.com/youtube/v3/playlistItems");
     playlistItemsUrl.searchParams.set("part", "snippet,contentDetails");
@@ -502,7 +509,7 @@ export async function fetchChannelAndVideos(params: {
           thumbnails: item.snippet?.thumbnails,
         },
       });
-      if (playlistItems.length >= limit) break;
+      if (desiredCount !== 0 && playlistItems.length >= desiredCount) break;
     }
 
     if (!res.data.nextPageToken) break;
