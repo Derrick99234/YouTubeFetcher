@@ -1,0 +1,66 @@
+import { NextRequest } from "next/server";
+import { fetchChannelAndVideos, resolveChannel } from "@/lib/youtube";
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+
+  const query = searchParams.get("q") || "";
+  const limitRaw = searchParams.get("limit");
+  const limitParsed = limitRaw ? Number(limitRaw) : undefined;
+  const limit =
+    typeof limitParsed === "number" && Number.isFinite(limitParsed)
+      ? Math.min(Math.max(Math.floor(limitParsed), 1), 2000)
+      : 500;
+
+  if (!query) {
+    return Response.json(
+      { ok: false, error: { message: "Query parameter 'q' is required" } },
+      { status: 400 }
+    );
+  }
+
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) {
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          message:
+            "Missing YOUTUBE_API_KEY. Add it to your server env (for local dev: .env.local).",
+        },
+      },
+      { status: 500 }
+    );
+  }
+
+  const resolved = await resolveChannel(query, apiKey);
+  if (!resolved.ok) {
+    return Response.json(
+      { ok: false, error: { message: resolved.message, reason: resolved.reason } },
+      { status: resolved.status }
+    );
+  }
+
+  const data = await fetchChannelAndVideos({
+    channelId: resolved.resolved.channelId,
+    apiKey,
+    limit,
+  });
+  if (!data.ok) {
+    return Response.json(
+      {
+        ok: false,
+        resolved: resolved.resolved,
+        error: { message: data.message, reason: data.reason },
+      },
+      { status: data.status }
+    );
+  }
+
+  return Response.json({
+    ok: true,
+    resolved: resolved.resolved,
+    channel: data.channel,
+    videos: data.videos,
+  });
+}
