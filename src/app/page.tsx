@@ -3,7 +3,6 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -18,9 +17,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "unwatched" | "watched">("all");
-  const [year, setYear] = useState<number | "all">("all");
+  const [yearFrom, setYearFrom] = useState<number | "all">("all");
+  const [yearTo, setYearTo] = useState<number | "all">("all");
   const [search, setSearch] = useState("");
   const [watchedById, setWatchedById] = useState<Record<string, true>>({});
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [data, setData] = useState<{
     ok: true;
     resolved: { channelId: string; inputType: string; normalizedQuery: string };
@@ -104,17 +105,31 @@ export default function Home() {
     return Array.from(years).sort((a, b) => b - a);
   }, [data]);
 
+  const yearRange = useMemo(() => {
+    if (!availableYears.length) return null;
+    if (yearFrom === "all" && yearTo === "all") return null;
+    const minYear = Math.min(...availableYears);
+    const maxYear = Math.max(...availableYears);
+
+    const from = yearFrom === "all" ? minYear : yearFrom;
+    const to = yearTo === "all" ? maxYear : yearTo;
+
+    const low = Math.min(from, to);
+    const high = Math.max(from, to);
+    return { low, high };
+  }, [availableYears, yearFrom, yearTo]);
+
   const filteredVideos = useMemo(() => {
     if (!data) return [];
     const term = search.trim().toLowerCase();
-    return data.videos.filter((v) => {
+    const byFilters = data.videos.filter((v) => {
       const isWatched = Boolean(watchedById[v.id]);
       if (filter === "watched" && !isWatched) return false;
       if (filter === "unwatched" && isWatched) return false;
-      if (year !== "all") {
+      if (yearRange) {
         if (!v.publishedAt) return false;
-        const d = new Date(v.publishedAt);
-        if (d.getUTCFullYear() !== year) return false;
+        const y = new Date(v.publishedAt).getUTCFullYear();
+        if (y < yearRange.low || y > yearRange.high) return false;
       }
       if (term) {
         const title = v.title.toLowerCase();
@@ -122,11 +137,22 @@ export default function Home() {
       }
       return true;
     });
-  }, [data, filter, search, watchedById, year]);
+    const dir = sortOrder === "asc" ? 1 : -1;
+    return [...byFilters].sort((a, b) => {
+      const ta = a.publishedAt ? Date.parse(a.publishedAt) : NaN;
+      const tb = b.publishedAt ? Date.parse(b.publishedAt) : NaN;
+      const aOk = Number.isFinite(ta);
+      const bOk = Number.isFinite(tb);
+      if (!aOk && !bOk) return 0;
+      if (!aOk) return 1;
+      if (!bOk) return -1;
+      return (ta - tb) * dir;
+    });
+  }, [data, filter, search, watchedById, yearRange, sortOrder]);
 
   useEffect(() => {
     setPageIndex(0);
-  }, [filter, search, year, pageSize, data?.channel.id]);
+  }, [filter, search, yearFrom, yearTo, pageSize, sortOrder, data?.channel.id]);
 
   const pageCount = useMemo(() => {
     if (!filteredVideos.length) return 1;
@@ -161,7 +187,8 @@ export default function Home() {
       }
       setData(json);
       setFilter("all");
-      setYear("all");
+      setYearFrom("all");
+      setYearTo("all");
       setSearch("");
     } catch {
       setError("Request failed");
@@ -207,12 +234,6 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              href="/style-guide"
-              className="hidden h-10 items-center justify-center rounded-[calc(var(--radius)-6px)] px-4 text-sm font-medium text-[rgb(var(--fg))] transition-[background-color,color,box-shadow] duration-150 ease-out hover:bg-[rgba(var(--fg),0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--bg))] sm:inline-flex"
-            >
-              Style guide
-            </Link>
             <Button
               variant="secondary"
               onClick={() => {
@@ -221,7 +242,8 @@ export default function Home() {
                 setError(null);
                 setSearch("");
                 setFilter("all");
-                setYear("all");
+                setYearFrom("all");
+                setYearTo("all");
                 setPageIndex(0);
               }}
             >
@@ -272,21 +294,57 @@ export default function Home() {
                       </Select>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium" htmlFor="year">
-                        Year
+                      <label className="text-sm font-medium">Order</label>
+                      <Button
+                        variant="secondary"
+                        disabled={!data}
+                        onClick={() => setSortOrder((o) => (o === "desc" ? "asc" : "desc"))}
+                        aria-label="Toggle sort order"
+                      >
+                        {sortOrder === "desc" ? "Newest first ↓" : "Oldest first ↑"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-medium" htmlFor="yearFrom">
+                        Year from
                       </label>
                       <Select
-                        id="year"
-                        value={year === "all" ? "all" : String(year)}
+                        id="yearFrom"
+                        value={yearFrom === "all" ? "all" : String(yearFrom)}
                         onChange={(e) => {
                           const v = e.target.value;
-                          if (v === "all") setYear("all");
-                          else setYear(Number(v));
+                          if (v === "all") setYearFrom("all");
+                          else setYearFrom(Number(v));
                         }}
                         disabled={!data}
                       >
                         <option value="all">All</option>
-                        {availableYears.map((y) => (
+                        {[...availableYears].reverse().map((y) => (
+                          <option key={y} value={String(y)}>
+                            {y}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-medium" htmlFor="yearTo">
+                        Year to
+                      </label>
+                      <Select
+                        id="yearTo"
+                        value={yearTo === "all" ? "all" : String(yearTo)}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === "all") setYearTo("all");
+                          else setYearTo(Number(v));
+                        }}
+                        disabled={!data}
+                      >
+                        <option value="all">All</option>
+                        {[...availableYears].reverse().map((y) => (
                           <option key={y} value={String(y)}>
                             {y}
                           </option>
@@ -460,8 +518,8 @@ export default function Home() {
                       <Badge variant={filter === "watched" ? "success" : "neutral"}>
                         {filter === "all" ? "All videos" : filter === "unwatched" ? "Unwatched" : "Watched"}
                       </Badge>
-                      <Badge variant={year === "all" ? "neutral" : "success"}>
-                        {year === "all" ? "All years" : String(year)}
+                      <Badge variant={yearRange ? "success" : "neutral"}>
+                        {yearRange ? `${yearRange.low}–${yearRange.high}` : "All years"}
                       </Badge>
                       <Badge variant="neutral">{filteredVideos.length.toLocaleString()} results</Badge>
                     </div>
@@ -552,13 +610,6 @@ export default function Home() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
-                        onClick={() => setPageIndex(0)}
-                        disabled={clampedPageIndex === 0}
-                        variant="secondary"
-                      >
-                        First
-                      </Button>
-                      <Button
                         onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
                         disabled={clampedPageIndex === 0}
                         variant="secondary"
@@ -571,13 +622,6 @@ export default function Home() {
                         variant="secondary"
                       >
                         Next
-                      </Button>
-                      <Button
-                        onClick={() => setPageIndex(pageCount - 1)}
-                        disabled={clampedPageIndex >= pageCount - 1}
-                        variant="secondary"
-                      >
-                        Last
                       </Button>
                     </div>
                   </CardContent>
