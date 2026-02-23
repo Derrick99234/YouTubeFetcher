@@ -3,6 +3,13 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Divider } from "@/components/ui/Divider";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 
 export default function Home() {
   const [q, setQ] = useState("");
@@ -174,262 +181,411 @@ export default function Home() {
     await fetchVideos(query);
   }
 
+  const pageStart = clampedPageIndex * pageSize + 1;
+  const pageEnd = Math.min((clampedPageIndex + 1) * pageSize, filteredVideos.length);
+
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans">
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-10 sm:px-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">YouTube Detail Fetcher</h1>
-          <p className="text-zinc-600">Paste a channel link, handle, or name to fetch all videos.</p>
-        </div>
+    <div className="min-h-screen bg-[rgb(var(--bg))]">
+      <a
+        href="#content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[calc(var(--radius)-6px)] focus:bg-[rgb(var(--card))] focus:px-3 focus:py-2 focus:text-sm focus:shadow-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--ring))] focus:ring-offset-2 focus:ring-offset-[rgb(var(--bg))]"
+      >
+        Skip to content
+      </a>
 
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="https://www.youtube.com/@SeoulK-Clip or @SeoulK-Clip or The Diary Of A CEO"
-              className="h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-zinc-400"
-            />
-            <input
-              value={String(pageSize)}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (!Number.isFinite(n)) return;
-                setPageSize(Math.min(Math.max(Math.floor(n), 1), 200));
-              }}
-              inputMode="numeric"
-              className="h-12 w-16 rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-zinc-400"
-              aria-label="Page size"
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="h-12 cursor-pointer w-full rounded-xl bg-zinc-950 px-5 text-base font-medium text-white disabled:opacity-60"
-            >
-              {loading ? "Fetching..." : "Fetch videos"}
-            </button>
-          </div>
-        </form>
-
-        {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900 dark:border-red-500/30">
-            {error}
-          </div>
-        ) : null}
-
-        {data ? (
-          <div className="flex flex-col gap-5">
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5">
-              <div className="flex items-start gap-4">
-                <div className="h-16 w-16 overflow-hidden rounded-2xl bg-zinc-100 dark:bg-white/10">
-                  {data.channel.thumbnails?.default?.url ? (
-                    <Image
-                      src={data.channel.thumbnails.default.url}
-                      alt={data.channel.title}
-                      width={64}
-                      height={64}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : null}
-                </div>
-                <div className="flex flex-1 flex-col gap-1">
-                  <div className="text-lg font-semibold">{data.channel.title}</div>
-                  <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {data.channel.statistics?.subscriberCount
-                      ? `${data.channel.statistics.subscriberCount.toLocaleString()} subscribers`
-                      : null}
-                    {data.channel.statistics?.videoCount
-                      ? ` · ${data.channel.statistics.videoCount.toLocaleString()} videos`
-                      : null}
-                  </div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-500">
-                    Resolved as {data.resolved.inputType} → {data.resolved.channelId}
-                  </div>
-                </div>
+      <header className="sticky top-0 z-40 border-b border-[rgb(var(--border))] bg-[rgba(var(--bg),0.85)] backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-[calc(var(--radius)-6px)] bg-[rgba(var(--primary),0.10)] text-[rgb(var(--fg))]">
+              <span className="text-sm font-semibold">YF</span>
+            </div>
+            <div className="flex flex-col">
+              <div className="text-base font-semibold tracking-[-0.01em]">YouTubeFetcher</div>
+              <div className="text-sm text-[rgb(var(--muted))]">
+                Track watched videos across years, without endless scrolling
               </div>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/style-guide"
+              className="hidden h-10 items-center justify-center rounded-[calc(var(--radius)-6px)] px-4 text-sm font-medium text-[rgb(var(--fg))] transition-[background-color,color,box-shadow] duration-150 ease-out hover:bg-[rgba(var(--fg),0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--bg))] sm:inline-flex"
+            >
+              Style guide
+            </Link>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setQ("");
+                setData(null);
+                setError(null);
+                setSearch("");
+                setFilter("all");
+                setYear("all");
+                setPageIndex(0);
+              }}
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
+      </header>
 
-            <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {watchedCount.toLocaleString()} / {data.videos.length.toLocaleString()} watched
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => fetchVideos(q.trim())}
-                    className="h-9 rounded-full border border-zinc-200 bg-white px-4 text-sm font-medium hover:border-zinc-300 disabled:opacity-60"
-                  >
-                    Refetch
-                  </button>
-                  {(["all", "unwatched", "watched"] as const).map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setFilter(k)}
-                      className={`h-9 rounded-full px-4 text-sm font-medium transition-colors ${filter === k
-                        ? "bg-zinc-950 text-white"
-                        : "border border-zinc-200 bg-white text-zinc-900 hover:border-zinc-300 dark:border-white/15"
-                        }`}
+      <main id="content" className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
+          <aside className="flex flex-col gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Channel input</CardTitle>
+                <CardDescription>Paste a channel link, @handle, or channel name.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={onSubmit} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium" htmlFor="channel">
+                      Channel
+                    </label>
+                    <Input
+                      id="channel"
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      placeholder="https://www.youtube.com/@SeoulK-Clip"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-medium" htmlFor="pagesize">
+                        Page size
+                      </label>
+                      <Select
+                        id="pagesize"
+                        value={String(pageSize)}
+                        onChange={(e) => setPageSize(Number(e.target.value))}
+                      >
+                        {[10, 20, 50, 100].map((n) => (
+                          <option key={n} value={String(n)}>
+                            {n}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-medium" htmlFor="year">
+                        Year
+                      </label>
+                      <Select
+                        id="year"
+                        value={year === "all" ? "all" : String(year)}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === "all") setYear("all");
+                          else setYear(Number(v));
+                        }}
+                        disabled={!data}
+                      >
+                        <option value="all">All</option>
+                        {availableYears.map((y) => (
+                          <option key={y} value={String(y)}>
+                            {y}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  </div>
+
+                  <Divider />
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium" htmlFor="title">
+                      Search titles
+                    </label>
+                    <Input
+                      id="title"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="e.g. episode, interview, kpop..."
+                      disabled={!data}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={loading}
+                      className="w-full sm:w-auto"
                     >
-                      {k === "all" ? "All" : k === "unwatched" ? "Unwatched" : "Watched"}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      {loading ? "Fetching…" : "Fetch videos"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={loading || !q.trim()}
+                      onClick={() => fetchVideos(q.trim())}
+                    >
+                      Refetch
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search titles..."
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-400 dark:border-white/15"
-                />
-                <select
-                  value={year === "all" ? "all" : String(year)}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "all") setYear("all");
-                    else setYear(Number(v));
-                  }}
-                  className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-400"
-                >
-                  <option value="all">All years</option>
-                  {availableYears.map((y) => (
-                    <option key={y} value={String(y)}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
+            <Card>
+              <CardHeader>
+                <CardTitle>Filters</CardTitle>
+                <CardDescription>Control what you see and what you’ve watched.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
+                  <Button
+                    variant={filter === "all" ? "primary" : "secondary"}
+                    onClick={() => setFilter("all")}
+                    disabled={!data}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    variant={filter === "unwatched" ? "primary" : "secondary"}
+                    onClick={() => setFilter("unwatched")}
+                    disabled={!data}
+                  >
+                    Unwatched
+                  </Button>
+                  <Button
+                    variant={filter === "watched" ? "primary" : "secondary"}
+                    onClick={() => setFilter("watched")}
+                    disabled={!data}
+                  >
+                    Watched
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  <Button
+                    variant="secondary"
                     onClick={() => markMany(pagedVideos.map((v) => v.id), true)}
-                    className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium hover:border-zinc-300 dark:border-white/15"
+                    disabled={!data || !pagedVideos.length}
                   >
                     Mark page watched
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => markMany(pagedVideos.map((v) => v.id), false)}
-                    className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium hover:border-zinc-300"
+                    disabled={!data || !pagedVideos.length}
                   >
                     Mark page unwatched
-                  </button>
+                  </Button>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
+          </aside>
 
-            <div className="grid grid-cols-1 gap-4">
-              {pagedVideos.map((v) => {
-                const thumb =
-                  v.thumbnails?.medium?.url ||
-                  v.thumbnails?.default?.url ||
-                  v.thumbnails?.high?.url;
-                const isWatched = Boolean(watchedById[v.id]);
-                return (
-                  <div
-                    key={v.id}
-                    className={`flex flex-col gap-3 rounded-2xl border bg-white p-4 transition-colors sm:flex-row sm:items-center ${isWatched
-                      ? "border-zinc-200/70"
-                      : "border-zinc-200 hover:border-zinc-300"
-                      }`}
-                  >
-                    <a
-                      href={v.watchUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex gap-4 sm:flex-1"
-                    >
-                      <div className="h-20 w-36 flex-none overflow-hidden rounded-xl bg-zinc-100 dark:bg-white/10">
-                        {thumb ? (
+          <section className="flex flex-col gap-6">
+            {error ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Request failed</CardTitle>
+                  <CardDescription>{error}</CardDescription>
+                </CardHeader>
+              </Card>
+            ) : null}
+
+            {!data ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ready when you are</CardTitle>
+                  <CardDescription>
+                    Paste a channel URL, @handle, or name. The app fetches every video and lets you
+                    filter by year, search, and track what you’ve watched.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[calc(var(--radius)-6px)] border border-[rgb(var(--border))] bg-[rgba(var(--fg),0.02)] p-4">
+                    <div className="text-sm font-semibold">Examples</div>
+                    <div className="mt-2 text-sm text-[rgb(var(--muted))]">
+                      https://studio.youtube.com/channel/UC…
+                      <br />
+                      https://www.youtube.com/@SeoulK-Clip
+                      <br />
+                      The Diary Of A CEO
+                    </div>
+                  </div>
+                  <div className="rounded-[calc(var(--radius)-6px)] border border-[rgb(var(--border))] bg-[rgba(var(--fg),0.02)] p-4">
+                    <div className="text-sm font-semibold">Watched tracking</div>
+                    <div className="mt-2 text-sm text-[rgb(var(--muted))]">
+                      Your watched state is stored per channel in this browser, so you can keep
+                      coming back without losing progress.
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <Card>
+                  <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="h-14 w-14 overflow-hidden rounded-[calc(var(--radius)-6px)] border border-[rgb(var(--border))] bg-[rgba(var(--fg),0.04)]">
+                        {data.channel.thumbnails?.default?.url ? (
                           <Image
-                            src={thumb}
-                            alt={v.title}
-                            width={320}
-                            height={180}
+                            src={data.channel.thumbnails.default.url}
+                            alt={data.channel.title}
+                            width={56}
+                            height={56}
                             className="h-full w-full object-cover"
                           />
                         ) : null}
                       </div>
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className={`truncate text-base font-medium ${isWatched ? "opacity-60" : ""}`}>
-                          {v.title}
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <div className="truncate text-lg font-semibold tracking-[-0.01em]">
+                          {data.channel.title}
                         </div>
-                        <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                          {v.statistics?.viewCount
-                            ? `${v.statistics.viewCount.toLocaleString()} views`
-                            : null}
-                          {v.statistics?.likeCount
-                            ? ` · ${v.statistics.likeCount.toLocaleString()} likes`
-                            : null}
-                          {v.duration ? ` · ${v.duration}` : null}
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-[rgb(var(--muted))]">
+                          {data.channel.statistics?.subscriberCount ? (
+                            <span>
+                              {data.channel.statistics.subscriberCount.toLocaleString()} subscribers
+                            </span>
+                          ) : null}
+                          {data.channel.statistics?.videoCount ? (
+                            <span>· {data.channel.statistics.videoCount.toLocaleString()} videos</span>
+                          ) : null}
+                          <span>· {watchedCount.toLocaleString()} watched</span>
                         </div>
-                        {v.publishedAt ? (
-                          <div className="text-xs text-zinc-500 dark:text-zinc-500">
-                            {new Date(v.publishedAt).toLocaleDateString()}
-                          </div>
-                        ) : null}
+                        <div className="text-xs text-[rgb(var(--muted-2))]">
+                          {data.resolved.inputType} → {data.resolved.channelId}
+                        </div>
                       </div>
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => toggleWatched(v.id)}
-                      className={`h-10 rounded-xl px-4 text-sm font-medium transition-colors ${isWatched
-                        ? "bg-zinc-950 text-white"
-                        : "border border-zinc-200 bg-white text-zinc-900 hover:border-zinc-300 dark:border-white/15"
-                        }`}
-                    >
-                      {isWatched ? "Watched" : "Mark watched"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant={filter === "watched" ? "success" : "neutral"}>
+                        {filter === "all" ? "All videos" : filter === "unwatched" ? "Unwatched" : "Watched"}
+                      </Badge>
+                      <Badge variant={year === "all" ? "neutral" : "success"}>
+                        {year === "all" ? "All years" : String(year)}
+                      </Badge>
+                      <Badge variant="neutral">{filteredVideos.length.toLocaleString()} results</Badge>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-zinc-600">
-                Page {(clampedPageIndex + 1).toLocaleString()} of {pageCount.toLocaleString()} ·{" "}
-                {filteredVideos.length.toLocaleString()} filtered
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPageIndex(0)}
-                  disabled={clampedPageIndex === 0}
-                  className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium disabled:opacity-50"
-                >
-                  First
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
-                  disabled={clampedPageIndex === 0}
-                  className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium disabled:opacity-50"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
-                  disabled={clampedPageIndex >= pageCount - 1}
-                  className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium disabled:opacity-50"
-                >
-                  Next
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPageIndex(pageCount - 1)}
-                  disabled={clampedPageIndex >= pageCount - 1}
-                  className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium disabled:opacity-50"
-                >
-                  Last
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-[rgb(var(--muted))]">
+                    Showing {filteredVideos.length ? pageStart.toLocaleString() : "0"}–{pageEnd.toLocaleString()}{" "}
+                    of {filteredVideos.length.toLocaleString()}
+                  </div>
+                  <div className="text-sm text-[rgb(var(--muted))]">
+                    Page {(clampedPageIndex + 1).toLocaleString()} / {pageCount.toLocaleString()}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {pagedVideos.map((v) => {
+                    const thumb =
+                      v.thumbnails?.medium?.url ||
+                      v.thumbnails?.default?.url ||
+                      v.thumbnails?.high?.url;
+                    const isWatched = Boolean(watchedById[v.id]);
+                    return (
+                      <Card
+                        key={v.id}
+                        className="transition-[border-color,box-shadow,transform] duration-150 hover:shadow-md"
+                      >
+                        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                          <a
+                            href={v.watchUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="group flex min-w-0 flex-1 gap-4 rounded-[calc(var(--radius)-6px)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--bg))]"
+                          >
+                            <div className="h-20 w-36 flex-none overflow-hidden rounded-[calc(var(--radius)-6px)] border border-[rgb(var(--border))] bg-[rgba(var(--fg),0.04)]">
+                              {thumb ? (
+                                <Image
+                                  src={thumb}
+                                  alt={v.title}
+                                  width={320}
+                                  height={180}
+                                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                                />
+                              ) : null}
+                            </div>
+                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                              <div
+                                className={`truncate text-base font-semibold tracking-[-0.01em] ${isWatched ? "opacity-60" : ""
+                                  }`}
+                              >
+                                {v.title}
+                              </div>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-[rgb(var(--muted))]">
+                                {v.statistics?.viewCount ? (
+                                  <span>{v.statistics.viewCount.toLocaleString()} views</span>
+                                ) : null}
+                                {v.statistics?.likeCount ? (
+                                  <span>{v.statistics.likeCount.toLocaleString()} likes</span>
+                                ) : null}
+                                {v.duration ? <span>{v.duration}</span> : null}
+                                {v.publishedAt ? (
+                                  <span>{new Date(v.publishedAt).toLocaleDateString()}</span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </a>
+
+                          <div className="flex items-center gap-2">
+                            {isWatched ? <Badge variant="success">Watched</Badge> : <Badge>Unwatched</Badge>}
+                            <Button
+                              variant={isWatched ? "primary" : "secondary"}
+                              onClick={() => toggleWatched(v.id)}
+                            >
+                              {isWatched ? "Watched" : "Mark watched"}
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                <Card>
+                  <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm text-[rgb(var(--muted))]">
+                      Use arrow keys + Tab to navigate controls. All actions are keyboard accessible.
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        onClick={() => setPageIndex(0)}
+                        disabled={clampedPageIndex === 0}
+                        variant="secondary"
+                      >
+                        First
+                      </Button>
+                      <Button
+                        onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+                        disabled={clampedPageIndex === 0}
+                        variant="secondary"
+                      >
+                        Prev
+                      </Button>
+                      <Button
+                        onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
+                        disabled={clampedPageIndex >= pageCount - 1}
+                        variant="secondary"
+                      >
+                        Next
+                      </Button>
+                      <Button
+                        onClick={() => setPageIndex(pageCount - 1)}
+                        disabled={clampedPageIndex >= pageCount - 1}
+                        variant="secondary"
+                      >
+                        Last
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </section>
+        </div>
       </main>
     </div>
   );
